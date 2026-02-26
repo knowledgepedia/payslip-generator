@@ -5,6 +5,7 @@ import PrintButton from './components/PrintButton';
 import { PayslipData } from './types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import JSZip from 'jszip';
 
 export default function App() {
   const [payslips, setPayslips] = useState<PayslipData[]>([]);
@@ -28,35 +29,50 @@ export default function App() {
     setIsExporting(true);
     
     try {
-      // Loop through each payslip data entry
+      // 1. Initialize a new virtual ZIP folder
+      const zip = new JSZip();
+
       for (let i = 0; i < payslips.length; i++) {
         const data = payslips[i];
         const element = document.getElementById(`payslip-${i}`);
         
         if (element) {
-          // 1. Take a screenshot of the DOM element
           const canvas = await html2canvas(element, { scale: 2 });
           const imgData = canvas.toDataURL('image/png');
           
-          // 2. Create the PDF ('p' = portrait, 'mm' = millimeters, 'a4' size)
           const pdf = new jsPDF('p', 'mm', 'a4');
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
           
           pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
-          // 3. Extract the date to format "MMM-YYYY"
-          // Assuming 'Pay Period' is like "01 Jan 2026 - 31 Jan 2026"
           const periodParts = data['Pay Period']?.split(' - ')[1]?.split(' ') || [];
           const month = periodParts[1] || 'Month';
           const year = periodParts[2] || 'Year';
-          
           const fileName = `${data['Employee Name']}_${month}-${year}.pdf`;
 
-          // 4. Trigger the download for this specific payslip
-          pdf.save(fileName);
+          // 2. IMPORTANT CHANGE: Output the PDF as a Blob (raw data) instead of saving
+          const pdfBlob = pdf.output('blob');
+          
+          // 3. Add that Blob directly into our virtual ZIP folder
+          zip.file(fileName, pdfBlob);
         }
       }
+
+      // 4. Compress the virtual folder into a single physical ZIP file
+      const zipContent = await zip.generateAsync({ type: 'blob' });
+
+      // 5. Trigger the download of the ZIP file using a temporary hidden link
+      const downloadLink = document.createElement('a');
+      downloadLink.href = URL.createObjectURL(zipContent);
+      downloadLink.download = 'Payslips_Archive.zip';
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      
+      // Clean up the memory and remove the hidden link
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(downloadLink.href);
+
     } catch (error) {
       console.error("Error generating PDFs:", error);
     } finally {
@@ -81,7 +97,6 @@ export default function App() {
           <>
             <div id="payslip-section">
               {payslips.map((payslip, index) => (
-                /* Added a unique ID to wrap each Payslip so html2canvas can target it */
                 <div key={index} id={`payslip-${index}`} className="mb-8">
                   <Payslip data={payslip} />
                 </div>
