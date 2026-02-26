@@ -1,0 +1,5 @@
+{
+  "name": "Payslip Generator",
+  "description": "Generate payslips in bulk by importing data from a CSV or XLSX file.",
+  "requestFramePermissions": []
+}

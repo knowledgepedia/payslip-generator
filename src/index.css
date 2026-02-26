@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@media print {
+  body {
+    background-color: white !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+  .print-border {
+    border: 1px solid #e5e7eb !important;
+  }
+  .payslip-container {
+    page-break-after: always;
+  }
+}
