@@ -3,8 +3,9 @@ import FileUpload from './components/FileUpload';
 import Payslip from './components/Payslip';
 import PrintButton from './components/PrintButton';
 import { PayslipData } from './types';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+// Import the new library
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 
 export default function App() {
@@ -29,7 +30,6 @@ export default function App() {
     setIsExporting(true);
     
     try {
-      // 1. Initialize a new virtual ZIP folder
       const zip = new JSZip();
 
       for (let i = 0; i < payslips.length; i++) {
@@ -37,12 +37,20 @@ export default function App() {
         const element = document.getElementById(`payslip-${i}`);
         
         if (element) {
-          const canvas = await html2canvas(element, { scale: 2 });
-          const imgData = canvas.toDataURL('image/png');
+          // Use html-to-image instead of html2canvas
+          // pixelRatio: 2 ensures high resolution (mimicking scale: 2)
+          const imgData = await toPng(element, { pixelRatio: 2 });
           
           const pdf = new jsPDF('p', 'mm', 'a4');
           const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+          
+          // html-to-image gives us a data URL, we need to calculate the height
+          // We can create a quick image object in memory to get the dimensions
+          const img = new Image();
+          img.src = imgData;
+          await new Promise((resolve) => { img.onload = resolve; });
+          
+          const pdfHeight = (img.height * pdfWidth) / img.width;
           
           pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
@@ -51,25 +59,19 @@ export default function App() {
           const year = periodParts[2] || 'Year';
           const fileName = `${data['Employee Name']}_${month}-${year}.pdf`;
 
-          // 2. IMPORTANT CHANGE: Output the PDF as a Blob (raw data) instead of saving
           const pdfBlob = pdf.output('blob');
-          
-          // 3. Add that Blob directly into our virtual ZIP folder
           zip.file(fileName, pdfBlob);
         }
       }
 
-      // 4. Compress the virtual folder into a single physical ZIP file
       const zipContent = await zip.generateAsync({ type: 'blob' });
 
-      // 5. Trigger the download of the ZIP file using a temporary hidden link
       const downloadLink = document.createElement('a');
       downloadLink.href = URL.createObjectURL(zipContent);
       downloadLink.download = 'Payslips_Archive.zip';
       document.body.appendChild(downloadLink);
       downloadLink.click();
       
-      // Clean up the memory and remove the hidden link
       document.body.removeChild(downloadLink);
       URL.revokeObjectURL(downloadLink.href);
 
@@ -97,7 +99,7 @@ export default function App() {
           <>
             <div id="payslip-section">
               {payslips.map((payslip, index) => (
-                <div key={index} id={`payslip-${index}`} className="mb-8">
+                <div key={index} id={`payslip-${index}`} className="mb-8 bg-white">
                   <Payslip data={payslip} />
                 </div>
               ))}
